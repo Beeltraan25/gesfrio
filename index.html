@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>GesFrío · Almacén</title>
+  <meta name="description" content="Catálogo y ubicaciones del almacén de congelados. Funciona sin conexión.">
+  <meta name="theme-color" content="#0b1320">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GesFrío">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="search">
+      <svg class="search-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+      <input id="q" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+             placeholder="Buscar producto o código" aria-label="Buscar producto">
+      <button id="q-clear" class="search-clear" type="button" aria-label="Borrar búsqueda" hidden>✕</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- CATÁLOGO -->
+    <section id="view-catalogo" class="view">
+      <div class="filters">
+        <div class="chips" id="f-camara" role="group" aria-label="Filtrar por cámara"></div>
+        <select id="f-categoria" class="big-select" aria-label="Filtrar por categoría"></select>
+      </div>
+      <div id="loc-hit"></div>
+      <p id="count" class="count"></p>
+      <ul id="lista" class="lista"></ul>
+    </section>
+
+    <!-- CÁMARAS -->
+    <section id="view-camaras" class="view" hidden>
+      <div class="chips chips-cam" id="cam-sel" role="group" aria-label="Elegir cámara"></div>
+      <p id="cam-resumen" class="count"></p>
+      <div class="grid-wrap" id="grid-wrap">
+        <table class="grid" id="grid"></table>
+      </div>
+      <p class="hint">Desliza la cuadrícula a los lados para ver las 20 posiciones. Toca un hueco para ver su contenido.</p>
+      <div class="legend">
+        <span><i class="lg lg-full"></i> Ocupado</span>
+        <span><i class="lg lg-empty"></i> Vacío</span>
+      </div>
+    </section>
+
+    <!-- COPIA / AJUSTES -->
+    <section id="view-copia" class="view" hidden>
+      <h2 class="h2">Copia de seguridad</h2>
+      <div class="stack">
+        <button class="btn btn-primary" id="exp-json" type="button">⬇ Exportar copia (JSON)</button>
+        <button class="btn" id="exp-csv" type="button">⬇ Exportar para Excel (CSV)</button>
+        <label class="btn btn-accent file-btn">⬆ Importar archivo (JSON o CSV)
+          <input id="imp-file" type="file" accept=".json,.csv,.txt,application/json,text/csv,text/plain">
+        </label>
+        <button class="btn" id="plantilla" type="button">📄 Descargar plantilla CSV</button>
+      </div>
+      <p class="help">
+        <b>Pasar datos a otro móvil:</b> exporta la copia JSON, envíala (WhatsApp, correo, Bluetooth, USB…) y en el otro móvil pulsa «Importar archivo».<br>
+        <b>Cargar desde Excel:</b> descarga la plantilla, rellénala en Excel y guárdala como «CSV UTF-8 (delimitado por comas)». Después impórtala aquí.
+      </p>
+
+      <h2 class="h2">Aplicación</h2>
+      <div class="stack">
+        <button class="btn btn-primary" id="install" type="button" hidden>📲 Instalar en este móvil</button>
+        <div id="ios-hint" class="help" hidden>
+          <b>Instalar en iPhone/iPad:</b> en Safari, pulsa el botón <b>Compartir</b> (cuadrado con flecha) y elige <b>«Añadir a pantalla de inicio»</b>.
+        </div>
+        <div id="info" class="info"></div>
+        <button class="btn" id="ejemplo" type="button">↺ Cargar productos de ejemplo</button>
+        <button class="btn btn-danger" id="borrar-todo" type="button">🗑 Borrar todos los datos</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottomnav" aria-label="Secciones">
+    <button type="button" data-view="catalogo" class="nav-btn active"><span class="nav-ico">☰</span>Catálogo</button>
+    <button type="button" data-view="camaras" class="nav-btn"><span class="nav-ico">▦</span>Cámaras</button>
+    <button type="button" id="nav-nuevo" class="nav-btn nav-add"><span class="nav-ico">＋</span>Nuevo</button>
+    <button type="button" data-view="copia" class="nav-btn"><span class="nav-ico">⇅</span>Copia</button>
+  </nav>
+
+  <div id="modals"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
