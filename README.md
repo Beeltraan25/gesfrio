@@ -127,8 +127,8 @@ window.GESFRIO_CONFIG = {
 Publica la app (apartado 1). Todos los móviles que la instalen, o que reciban esta versión, quedan conectados sin tocar nada.
 
 **Opción B: móvil a móvil.** En la app: **Copia → Compartir datos entre móviles**. Pega la URL y la clave y pulsa **🔗 Conectar**.
-- Si la hoja ya tiene productos, el móvil pasa a usar los de la hoja.
-- Si la hoja está vacía, el primer móvil que se conecte puede **subir sus productos** para que sean el catálogo inicial de todos.
+- Si en ese móvil ya habías añadido o cambiado productos, la app pregunta si quieres **juntarlos con los de la hoja** (recomendado) o descartarlos. Si un producto con el mismo código ya está en la hoja, se le añaden las ubicaciones de este móvil.
+- Los productos de ejemplo que no se han tocado no se suben a la hoja.
 
 **Seguridad:** la URL y la clave son lo único que protege la hoja. Cualquiera que tenga las dos puede leer y cambiar el catálogo. No las publiques fuera de la empresa. Si se filtran, cambia la `CLAVE` en el script, crea una versión nueva de la implementación y pon la clave nueva en `config.js` o en cada móvil.
 

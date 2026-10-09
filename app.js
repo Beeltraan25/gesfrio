@@ -21,7 +21,7 @@ const LETRAS = ['A', 'B', 'C'];
 const TOTAL_HUECOS = ALMACEN.reduce((s, c) => s + c.pasillos.length, 0) * POSICIONES * LETRAS.length;
 const CATEGORIAS = ['Pescado', 'Marisco', 'Carne', 'Verduras', 'Precocinados', 'Helados', 'Panadería', 'Postres', 'Otros'];
 const FORMATOS = ['Caja', 'Kg', 'Unidades', 'Bolsa', 'Bandeja'];
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 const CONFIG = window.GESFRIO_CONFIG || {};
 
 /* ============================================================
@@ -354,6 +354,25 @@ function confirmar(msg, { ok = 'Sí, continuar', peligro = false, cancelar = 'Ca
       onClose: () => { if (!decided) resolve(false); }
     });
     $('[data-ok]', m).addEventListener('click', () => { decided = true; closeModal(m); resolve(true); });
+  });
+}
+
+/** Diálogo con varias opciones en botones grandes. Devuelve la clave elegida o null. */
+function elegir(msg, opciones) {
+  return new Promise(resolve => {
+    let decided = false;
+    const m = openModal({
+      title: 'Elegir', full: false,
+      body: `<p class="confirm-msg">${msg}</p>`,
+      foot: opciones.map(o => `<button type="button" class="btn ${o.cls || ''}" data-k="${esc(o.k)}">${esc(o.txt)}</button>`).join('') +
+        `<button type="button" class="btn" data-close>Cancelar</button>`,
+      onClose: () => { if (!decided) resolve(null); }
+    });
+    $('.sheet-foot', m).addEventListener('click', e => {
+      const b = e.target.closest('[data-k]');
+      if (!b) return;
+      decided = true; closeModal(m); resolve(b.dataset.k);
+    });
   });
 }
 
@@ -979,19 +998,36 @@ const Sync = {
   async conectar(url, clave) {
     const cfg = { url: url.trim(), clave: clave.trim() };
     const res = await this.llamar({ accion: 'leer' }, cfg);
-    const srv = (res.productos || []).filter(s => !s.borrado);
-    const locales = state.productos.length;
-    let subir = false;
-    if (srv.length) {
-      if (locales && !(await confirmar(`La hoja ya tiene <b>${srv.length}</b> productos.<br>Este móvil usará los datos de la hoja y se descartarán sus <b>${locales}</b> productos actuales.`, { ok: 'Conectar y usar la hoja' }))) return false;
-    } else if (locales) {
-      subir = await confirmar(`La hoja está vacía.<br>¿Subir los <b>${locales}</b> productos de este móvil para compartirlos?<br><small>Si eliges «No», este móvil empezará con el catálogo vacío.</small>`, { ok: 'Sí, subir mis productos', cancelar: 'No, empezar vacío' });
+    const srv = (res.productos || []).filter(s => !s.borrado).map(desdeServidor);
+    // Productos añadidos o cambiados en este móvil (los de ejemplo sin tocar no se suben).
+    const propios = state.productos.filter(p => p.pend);
+    let modo = 'hoja';
+    if (propios.length) {
+      const n = propios.length > 1 ? `<b>${propios.length}</b> productos añadidos o cambiados` : '<b>1</b> producto añadido o cambiado';
+      modo = await elegir(srv.length
+        ? `La hoja ya tiene <b>${srv.length}</b> productos y este móvil tiene ${n} aquí.`
+        : `La hoja está vacía. Este móvil tiene ${n} aquí.`, [
+        { k: 'juntar', txt: srv.length ? 'Juntar mis productos con los de la hoja' : 'Subir mis productos a la hoja', cls: 'btn-primary' },
+        { k: 'hoja', txt: srv.length ? 'Usar solo lo de la hoja (descartar los míos)' : 'Empezar con el catálogo vacío', cls: 'btn-danger' }
+      ]);
+      if (!modo) return false;
     }
-    const t = ahora();
-    const recs = subir
-      ? state.productos.map(p => registro({ ...p, pend: true, forzar: true, actualizado: t }))
-      : srv.map(desdeServidor);
-    await DB.bulk({ clear: true, put: recs });
+    const recs = srv.slice();
+    if (modo === 'juntar') {
+      const claveDe = p => p.codigo ? 'c:' + norm(p.codigo) : 'n:' + norm(p.nombre);
+      const enHoja = new Map(recs.map(r => [claveDe(r), r]));
+      for (const p of propios) {
+        const r = enHoja.get(claveDe(p));
+        if (r) {
+          // El mismo producto ya está en la hoja: se le añaden las ubicaciones de este móvil.
+          const extra = p.ubicaciones.filter(u => !r.ubicaciones.includes(u));
+          if (extra.length) { r.ubicaciones = normUbic(r.ubicaciones.concat(extra)); r.pend = true; }
+        } else {
+          recs.push(registro({ ...p, pend: true, forzar: false, base: [], actualizado: ahora() }));
+        }
+      }
+    }
+    await DB.bulk({ clear: true, put: recs.map(registro) });
     this.cfg = cfg;
     await DB.setMeta('sync', cfg);
     await cargarDesdeDB();
