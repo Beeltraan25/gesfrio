@@ -26,6 +26,42 @@ const COLUMNAS = ['codigo', 'nombre', 'categoria', 'formato', 'ubicaciones', 'no
 const HOJA_EDITORES = 'Editores';
 const HOJA_HISTORIAL = 'Historial';
 
+/** Al abrir la hoja: crea las pestañas que falten y añade el menú «GesFrío». */
+function onOpen() {
+  prepararHojas();
+  SpreadsheetApp.getUi().createMenu('GesFrío')
+    .addItem('Añadir editor…', 'menuAnadirEditor')
+    .addItem('Ver mi código de administrador', 'menuVerAdmin')
+    .addItem('Crear pestañas que falten', 'prepararHojas')
+    .addToUi();
+}
+
+function prepararHojas() {
+  obtenerHoja();
+  hojaEditores();
+  hojaHistorial();
+}
+
+function menuAnadirEditor() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Añadir editor', 'Nombre de la persona:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const nombre = r.getResponseText().trim();
+  if (!nombre) return;
+  const sh = hojaEditores();
+  const usados = sh.getDataRange().getValues().map(v => String(v[1]));
+  let codigo;
+  do { codigo = String(Math.floor(100000 + Math.random() * 900000)); } while (usados.indexOf(codigo) >= 0);
+  sh.getRange(sh.getLastRow() + 1, 1, 1, 3).setNumberFormat('@').setValues([[nombre, codigo, 'SI']]);
+  ui.alert('Editor añadido', nombre + '\n\nCódigo: ' + codigo + '\n\nEn su móvil: Copia → Permiso para editar → escribir el código → Activar edición.', ui.ButtonSet.OK);
+}
+
+function menuVerAdmin() {
+  const v = hojaEditores().getDataRange().getValues();
+  const fila = v.find((f, i) => i > 0 && String(f[0]).trim() === 'Administrador');
+  SpreadsheetApp.getUi().alert('Código de administrador', fila ? String(fila[1]) : 'No hay fila «Administrador» en la pestaña Editores.', SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
 function doPost(e) {
   let datos;
   try { datos = JSON.parse(e.postData.contents); }
@@ -146,7 +182,7 @@ function hojaEditores() {
   return sh;
 }
 
-function anotarHistorial(filas) {
+function hojaHistorial() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(HOJA_HISTORIAL);
   if (!sh) {
@@ -154,6 +190,11 @@ function anotarHistorial(filas) {
     sh.getRange(1, 1, 1, 7).setValues([['fecha', 'editor', 'codigo', 'producto', 'accion', 'ubicaciones_antes', 'ubicaciones_despues']]).setFontWeight('bold');
     sh.setFrozenRows(1);
   }
+  return sh;
+}
+
+function anotarHistorial(filas) {
+  const sh = hojaHistorial();
   const r = sh.getRange(sh.getLastRow() + 1, 1, filas.length, 7);
   r.setNumberFormat('@');
   r.setValues(filas);
