@@ -65,7 +65,7 @@
       <div class="stack">
         <button class="btn btn-primary" id="exp-json" type="button">⬇ Exportar copia (JSON)</button>
         <button class="btn" id="exp-csv" type="button">⬇ Exportar para Excel (CSV)</button>
-        <label class="btn btn-accent file-btn">⬆ Importar archivo (JSON o CSV)
+        <label class="btn btn-accent file-btn req-edit">⬆ Importar archivo (JSON o CSV)
           <input id="imp-file" type="file" accept=".json,.csv,.txt,application/json,text/csv,text/plain">
         </label>
         <button class="btn" id="plantilla" type="button">📄 Descargar plantilla CSV</button>
@@ -82,8 +82,8 @@
           <b>Instalar en iPhone/iPad:</b> en Safari, pulsa el botón <b>Compartir</b> (cuadrado con flecha) y elige <b>«Añadir a pantalla de inicio»</b>.
         </div>
         <div id="info" class="info"></div>
-        <button class="btn" id="ejemplo" type="button">↺ Cargar productos de ejemplo</button>
-        <button class="btn btn-danger" id="borrar-todo" type="button">🗑 Borrar todos los datos</button>
+        <button class="btn req-edit" id="ejemplo" type="button">↺ Cargar productos de ejemplo</button>
+        <button class="btn btn-danger req-edit" id="borrar-todo" type="button">🗑 Borrar todos los datos</button>
       </div>
     </section>
   </main>
@@ -91,7 +91,7 @@
   <nav class="bottomnav" aria-label="Secciones">
     <button type="button" data-view="catalogo" class="nav-btn active"><span class="nav-ico">☰</span>Catálogo</button>
     <button type="button" data-view="camaras" class="nav-btn"><span class="nav-ico">▦</span>Cámaras</button>
-    <button type="button" id="nav-nuevo" class="nav-btn nav-add"><span class="nav-ico">＋</span>Nuevo</button>
+    <button type="button" id="nav-nuevo" class="nav-btn nav-add req-edit-nav"><span class="nav-ico">＋</span>Nuevo</button>
     <button type="button" data-view="copia" class="nav-btn"><span class="nav-ico">⇅</span>Copia</button>
   </nav>
 

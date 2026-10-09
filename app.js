@@ -21,7 +21,7 @@ const LETRAS = ['A', 'B', 'C'];
 const TOTAL_HUECOS = ALMACEN.reduce((s, c) => s + c.pasillos.length, 0) * POSICIONES * LETRAS.length;
 const CATEGORIAS = ['Pescado', 'Marisco', 'Carne', 'Verduras', 'Precocinados', 'Helados', 'Panadería', 'Postres', 'Otros'];
 const FORMATOS = ['Caja', 'Kg', 'Unidades', 'Bolsa', 'Bandeja'];
-const APP_VERSION = '2.0.2';
+const APP_VERSION = '2.1.0';
 const CONFIG = window.GESFRIO_CONFIG || {};
 
 /* ============================================================
@@ -233,6 +233,13 @@ async function reemplazarCatalogo(nuevos) {
 }
 
 function getProducto(id) { return state.productos.find(p => p.id === id); }
+
+/** Si el móvil comparte datos con la hoja, solo se puede editar con un código de editor. */
+function puedeEditar() { return !Sync.activo() || !!Sync.editor; }
+
+function aplicarPermisos() {
+  document.body.classList.toggle('solo-lectura', !puedeEditar());
+}
 
 /** Mapa ubicación -> [productos] */
 function mapaUbicaciones() {
@@ -586,12 +593,12 @@ function pintarFicha(m) {
     ${p.ubicaciones.map(u => `
       <div class="locrow">
         <button type="button" class="loc loc-big" data-ver="${esc(u)}" aria-label="Ver ${esc(u)} en la cámara">${esc(u)}</button>
-        <button type="button" class="btn btn-sm" data-mover="${esc(u)}">Mover</button>
-        <button type="button" class="btn btn-sm btn-danger" data-quitar="${esc(u)}">Quitar</button>
+        <button type="button" class="btn btn-sm req-edit" data-mover="${esc(u)}">Mover</button>
+        <button type="button" class="btn btn-sm btn-danger req-edit" data-quitar="${esc(u)}">Quitar</button>
       </div>`).join('')}
-    <button type="button" class="btn btn-accent" data-add-loc>＋ Añadir ubicación</button>
-    <div class="sec-title">Gestión</div>
-    <div class="stack">
+    <button type="button" class="btn btn-accent req-edit" data-add-loc>＋ Añadir ubicación</button>
+    <div class="sec-title req-edit">Gestión</div>
+    <div class="stack req-edit">
       <button type="button" class="btn" data-editar>✎ Editar datos</button>
       <button type="button" class="btn btn-danger" data-eliminar>🗑 Eliminar producto</button>
     </div>`;
@@ -763,12 +770,12 @@ function pintarHueco(m) {
           <div class="item-name">${esc(p.nombre)}</div>
           <div class="item-meta">${[p.codigo && `<b>${esc(p.codigo)}</b>`, esc(p.categoria), esc(p.formato)].filter(Boolean).join(' · ')}</div>
         </button>
-        <div class="row" style="margin-top:8px">
+        <div class="row req-edit" style="margin-top:8px">
           <button type="button" class="btn btn-sm" data-moverde="${esc(p.id)}">Mover</button>
           <button type="button" class="btn btn-sm btn-danger" data-sacar="${esc(p.id)}">Quitar</button>
         </div>
       </div>`).join('')}
-    <button type="button" class="btn btn-accent" data-asignar>＋ Poner un producto aquí</button>`;
+    <button type="button" class="btn btn-accent req-edit" data-asignar>＋ Poner un producto aquí</button>`;
 }
 
 /** Lista con buscador para elegir un producto existente. */
@@ -884,6 +891,7 @@ const Sync = {
   error: '',            // último error (vacío si fue bien)
   sinRed: false,
   timer: null,
+  editor: null,         // {codigo, nombre} si este móvil puede hacer cambios
 
   activo() { return !!(this.cfg.url && this.cfg.clave); },
 
@@ -892,6 +900,7 @@ const Sync = {
     if (guardada && (guardada.url || guardada.desconectado)) this.cfg = guardada;
     else if (CONFIG.syncUrl && CONFIG.syncClave) this.cfg = { url: CONFIG.syncUrl.trim(), clave: CONFIG.syncClave.trim(), deConfig: true };
     this.ultima = await DB.getMeta('syncUltima') || null;
+    this.editor = await DB.getMeta('editor') || null;
   },
 
   /** Llamada a la aplicación web de Google Apps Script. */
@@ -903,7 +912,7 @@ const Sync = {
       res = await fetch(cfg.url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // evita la petición previa CORS
-        body: JSON.stringify({ ...datos, clave: cfg.clave }),
+        body: JSON.stringify({ ...datos, clave: cfg.clave, editor: this.editor ? this.editor.codigo : '' }),
         redirect: 'follow',
         signal: ctrl.signal
       });
@@ -914,7 +923,11 @@ const Sync = {
     } finally { clearTimeout(to); }
     let json;
     try { json = await res.json(); } catch (e) { throw new Error('La dirección no es la de la hoja de GesFrío (respuesta no válida)'); }
-    if (!json || !json.ok) throw new Error((json && json.error) || 'Error en la hoja');
+    if (!json || !json.ok) {
+      const err = new Error((json && json.error) || 'Error en la hoja');
+      err.codigo = json && json.codigo;
+      throw err;
+    }
     return json;
   },
 
@@ -956,6 +969,10 @@ const Sync = {
       if (avisar) toast('Sincronizado con la hoja ✓');
       return true;
     } catch (e) {
+      if (e.codigo === 'NO_EDITOR') {
+        await this.perderPermiso();
+        return false;
+      }
       this.sinRed = !!e.red;
       this.error = e.red ? '' : (e.message || String(e));
       if (avisar) toast(e.red ? 'Sin conexión. Los cambios se enviarán cuando haya cobertura.' : 'Error al sincronizar: ' + this.error, true);
@@ -1002,7 +1019,10 @@ const Sync = {
     // Productos añadidos o cambiados en este móvil (los de ejemplo sin tocar no se suben).
     const propios = state.productos.filter(p => p.pend);
     let modo = 'hoja';
-    if (propios.length) {
+    if (propios.length && !this.editor) {
+      const ok = await confirmar(`Este móvil tiene <b>${propios.length}</b> producto${propios.length > 1 ? 's' : ''} añadido${propios.length > 1 ? 's' : ''} o cambiado${propios.length > 1 ? 's' : ''} aquí, pero solo un editor puede subir productos a la hoja.<br>Si continúas, este móvil usará los datos de la hoja y se descartarán los suyos.<br><small>Para conservarlos, exporta antes una copia y pásasela a un editor.</small>`, { ok: 'Continuar y usar la hoja' });
+      if (!ok) return false;
+    } else if (propios.length) {
       const n = propios.length > 1 ? `<b>${propios.length}</b> productos añadidos o cambiados` : '<b>1</b> producto añadido o cambiado';
       modo = await elegir(srv.length
         ? `La hoja ya tiene <b>${srv.length}</b> productos y este móvil tiene ${n} aquí.`
@@ -1030,16 +1050,60 @@ const Sync = {
     await DB.bulk({ clear: true, put: recs.map(registro) });
     this.cfg = cfg;
     await DB.setMeta('sync', cfg);
+    aplicarPermisos();
     await cargarDesdeDB();
     await this.sincronizar();
     refrescar();
     return true;
   },
 
+  /** Comprueba un código de editor en la hoja y lo guarda en este móvil. */
+  async activarEditor(codigo) {
+    const prev = this.editor;
+    this.editor = { codigo: codigo.trim().toUpperCase(), nombre: '' };
+    try {
+      const res = await this.llamar({ accion: 'comprobarEditor' });
+      if (!res.nombre) throw new Error('El script de la hoja es antiguo: vuelve a pegar Codigo.gs y publica una versión nueva.');
+      this.editor.nombre = res.nombre;
+      await DB.setMeta('editor', this.editor);
+      aplicarPermisos();
+      return this.editor.nombre;
+    } catch (e) {
+      this.editor = prev;
+      throw e;
+    }
+  },
+
+  async bloquearEdicion() {
+    this.editor = null;
+    await DB.setMeta('editor', null);
+    aplicarPermisos();
+  },
+
+  /** La hoja ha rechazado los cambios (código dado de baja o móvil sin permiso):
+   *  se descartan los cambios pendientes y se vuelve a los datos de la hoja. */
+  async perderPermiso() {
+    const teniaEditor = !!this.editor;
+    const recs = await DB.all();
+    const pend = recs.filter(r => r.pend);
+    if (pend.length) await DB.bulk({ put: pend.map(r => ({ ...r, pend: false, forzar: false })) });
+    if (teniaEditor) {
+      this.editor = null;
+      await DB.setMeta('editor', null);
+      aplicarPermisos();
+      toast('Tu código de editor ya no es válido. Los cambios no enviados se han descartado.', true);
+    }
+    this.enCurso = false;
+    await this.sincronizar();
+  },
+
   async desconectar() {
     this.cfg = { url: '', clave: '' };
     await DB.setMeta('sync', { url: '', clave: '', desconectado: true });
     this.error = ''; this.ultima = null;
+    this.editor = null;
+    await DB.setMeta('editor', null);
+    aplicarPermisos();
     pintarSyncBar();
   }
 };
@@ -1055,7 +1119,7 @@ function desdeServidor(s) {
   };
   r.base = r.ubicaciones.slice();
   // Si en la hoja alguien escribió una ubicación con otro formato, se corrige en la hoja.
-  if (crudas.some(u => (parseLoc(u) || {}).key !== u)) { r.pend = true; r.forzar = true; }
+  if (Sync.editor && crudas.some(u => (parseLoc(u) || {}).key !== u)) { r.pend = true; r.forzar = true; }
   return r;
 }
 
@@ -1094,8 +1158,18 @@ function renderSyncPanel() {
         ${Sync.cfg.deConfig ? '<div>Conectado automáticamente (config.js)</div>' : ''}
       </div>
       <button type="button" class="btn btn-primary" id="sync-ahora">⟳ Sincronizar ahora</button>
-      <button type="button" class="btn btn-danger" id="sync-off">Desconectar este móvil</button>
-      <p class="help">Los cambios hechos sin cobertura se guardan en el móvil y se envían solos al recuperar la conexión.</p>`;
+      <p class="help">Los cambios hechos sin cobertura se guardan en el móvil y se envían solos al recuperar la conexión.</p>
+      <h2 class="h2">Permiso para editar</h2>
+      ${Sync.editor ? `
+        <div class="info"><div>Este móvil puede editar como: <b class="okmsg">${esc(Sync.editor.nombre)}</b></div></div>
+        <button type="button" class="btn" id="ed-off">🔒 Bloquear edición en este móvil</button>
+        <p class="help">Bloquéalo si el móvil pasa a otra persona. Para volver a editar habrá que poner un código.</p>` : `
+        <p class="help">Este móvil está en <b>modo consulta</b>: puede buscar y ver ubicaciones, pero no añadir ni cambiar nada. Para editar, escribe tu código de editor (lo da el encargado; está en la pestaña «Editores» de la hoja).</p>
+        <div class="field"><label for="ed-codigo">Código de editor</label>
+          <input id="ed-codigo" inputmode="numeric" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+        <p class="err" id="ed-err"></p>
+        <button type="button" class="btn btn-accent" id="ed-on">🔓 Activar edición</button>`}
+      <button type="button" class="btn btn-danger" id="sync-off">Desconectar este móvil de la hoja</button>`;
   } else {
     el.innerHTML = `
       <p class="help">Conecta este móvil a la hoja de Google de la empresa para que todos los móviles vean los mismos productos y ubicaciones. Las instrucciones para crear la hoja están en el archivo README.</p>
@@ -1442,7 +1516,11 @@ function wire() {
     if (b.dataset.view === 'camaras' && state.view !== 'camaras') state.highlight = '';
     setView(b.dataset.view);
   }));
-  $('#nav-nuevo').addEventListener('click', () => { closeAllModals(); abrirFormulario(null); });
+  $('#nav-nuevo').addEventListener('click', () => {
+    closeAllModals();
+    if (!puedeEditar()) { toast('Modo consulta: para añadir productos activa la edición en Copia.', true); return; }
+    abrirFormulario(null);
+  });
 
   $('#exp-json').addEventListener('click', exportarJSON);
   $('#exp-csv').addEventListener('click', exportarCSV);
@@ -1474,6 +1552,26 @@ function wire() {
     if (!b) return;
     if (b.id === 'sync-ahora') {
       await Sync.sincronizar({ avisar: true });
+    } else if (b.id === 'ed-on') {
+      const codigo = $('#ed-codigo').value.trim();
+      const err = $('#ed-err');
+      if (!codigo) { err.textContent = 'Escribe tu código de editor.'; return; }
+      b.disabled = true; b.textContent = 'Comprobando…';
+      try {
+        const nombre = await Sync.activarEditor(codigo);
+        toast(`Edición activada: ${nombre}`);
+        renderCopia(); refrescar();
+        return;
+      } catch (ex) {
+        err.textContent = ex.red ? 'Hace falta conexión para comprobar el código.' : ex.codigo === 'NO_EDITOR' ? 'Código no válido o dado de baja.' : ex.message;
+      }
+      b.disabled = false; b.textContent = '🔓 Activar edición';
+    } else if (b.id === 'ed-off') {
+      if (!(await confirmar('¿Bloquear la edición en este móvil?<br>Quedará en modo consulta hasta que alguien ponga un código de editor.', { ok: 'Sí, bloquear' }))) return;
+      if (Sync.pendientes) await Sync.sincronizar();
+      await Sync.bloquearEdicion();
+      toast('Edición bloqueada');
+      renderCopia(); refrescar();
     } else if (b.id === 'sync-off') {
       if (!(await confirmar('¿Desconectar este móvil de la hoja?<br>Los datos se quedan en el móvil pero dejarán de actualizarse.', { ok: 'Sí, desconectar', peligro: true }))) return;
       await Sync.desconectar();
@@ -1522,6 +1620,7 @@ async function init() {
   try {
     await DB.open();
     await Sync.cargarConfig();
+    aplicarPermisos();
     const iniciado = await DB.getMeta('iniciado');
     if (!iniciado) {
       // Los productos de ejemplo solo se cargan si el móvil no está conectado a una hoja.

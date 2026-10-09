@@ -9,6 +9,12 @@
  *       Ejecutar como: «Yo»   ·   Quién tiene acceso: «Cualquier usuario».
  *  5. Autoriza los permisos y copia la «URL de la aplicación web» (termina en /exec).
  *
+ * EDITORES: solo quien tenga un código de la pestaña «Editores» puede añadir, cambiar o borrar
+ * desde la app. El resto de móviles solo pueden consultar. La pestaña se crea sola la primera vez,
+ * con un editor «Administrador» y un código al azar. Para dar de alta a una persona, añade una fila
+ * (nombre, código, activo = SI). Para quitarle el permiso, pon activo = NO.
+ * Cada cambio queda apuntado en la pestaña «Historial» con el nombre de quien lo hizo.
+ *
  * La hoja «Productos» se puede consultar y editar a mano. Para añadir productos desde la hoja,
  * escribe una fila nueva con al menos el nombre (deja vacía la columna id: se rellena sola).
  * Ubicaciones separadas por comas, con el formato de la app: K-P3-12-B, S-SOFIALTO-4-A…
@@ -16,7 +22,9 @@
 
 const CLAVE = '12345';
 const HOJA = 'Productos';
-const COLUMNAS = ['codigo', 'nombre', 'categoria', 'formato', 'ubicaciones', 'notas', 'actualizado', 'borrado', 'id'];
+const COLUMNAS = ['codigo', 'nombre', 'categoria', 'formato', 'ubicaciones', 'notas', 'actualizado', 'modificado_por', 'borrado', 'id'];
+const HOJA_EDITORES = 'Editores';
+const HOJA_HISTORIAL = 'Historial';
 
 function doPost(e) {
   let datos;
@@ -39,20 +47,35 @@ function manejar(d) {
   const lock = LockService.getScriptLock();
   lock.waitLock(25000);
   try {
+    const editor = buscarEditor(d.editor);
+    if (d.accion === 'comprobarEditor') {
+      return editor ? { ok: true, nombre: editor.nombre } : { ok: false, codigo: 'NO_EDITOR', error: 'Código de editor no válido' };
+    }
+    const cambios = d.accion === 'sincronizar' && Array.isArray(d.cambios) ? d.cambios.filter(c => c && c.id) : [];
+    if (cambios.length && !editor) {
+      return { ok: false, codigo: 'NO_EDITOR', error: 'Este móvil no tiene permiso para hacer cambios' };
+    }
     const sh = obtenerHoja();
     const { filas, porId, cambiado: idsNuevos } = leer(sh);
     let cambiado = idsNuevos;
-    if (d.accion === 'sincronizar' && Array.isArray(d.cambios)) {
-      d.cambios.forEach(c => {
-        if (!c || !c.id) return;
-        const i = porId[c.id];
-        const fusion = fusionar(i === undefined ? null : filas[i], c);
-        if (i === undefined) { porId[c.id] = filas.length; filas.push(fusion); }
-        else filas[i] = fusion;
-        cambiado = true;
-      });
-    }
+    const historial = [];
+    const fecha = new Date().toISOString();
+    cambios.forEach(c => {
+      const i = porId[c.id];
+      const antes = i === undefined ? null : filas[i];
+      const fusion = fusionar(antes, c);
+      fusion.modificado_por = editor.nombre;
+      if (i === undefined) { porId[c.id] = filas.length; filas.push(fusion); }
+      else filas[i] = fusion;
+      cambiado = true;
+      const accion = !antes ? 'alta' : (fusion.borrado && !antes.borrado) ? 'borrado' : 'cambio';
+      const ua = antes ? antes.ubicaciones.join(', ') : '', ud = fusion.ubicaciones.join(', ');
+      const igual = antes && accion === 'cambio' && ua === ud && antes.nombre === fusion.nombre && antes.codigo === fusion.codigo &&
+        antes.categoria === fusion.categoria && antes.formato === fusion.formato && antes.notas === fusion.notas;
+      if (!igual) historial.push([fecha, editor.nombre, fusion.codigo, fusion.nombre, accion, ua, ud]);
+    });
     if (cambiado) escribir(sh, filas);
+    if (historial.length) anotarHistorial(historial);
     return { ok: true, hora: new Date().toISOString(), productos: filas };
   } finally {
     lock.releaseLock();
@@ -84,10 +107,56 @@ function fusionar(ex, c) {
   const g = ganaNuevo ? nuevo : ex;
   return {
     id: ex.id, codigo: g.codigo, nombre: g.nombre, categoria: g.categoria, formato: g.formato, notas: g.notas,
+    modificado_por: ex.modificado_por,
     ubicaciones: g.borrado ? [] : ubic,
     actualizado: ganaNuevo ? nuevo.actualizado : ex.actualizado,
     borrado: g.borrado
   };
+}
+
+/** Busca un código en la pestaña «Editores». Devuelve {nombre} si es válido y está activo. */
+function buscarEditor(codigo) {
+  const sh = hojaEditores();
+  codigo = str(codigo).toUpperCase();
+  if (!codigo) return null;
+  const valores = sh.getDataRange().getValues();
+  const cab = (valores[0] || []).map(h => String(h).trim().toLowerCase());
+  const iN = cab.indexOf('nombre'), iC = cab.indexOf('codigo'), iA = cab.indexOf('activo');
+  for (let r = 1; r < valores.length; r++) {
+    const v = valores[r];
+    if (str(v[iC]).toUpperCase() !== codigo) continue;
+    const activo = iA < 0 ? '' : str(v[iA]).toUpperCase();
+    if (['NO', 'FALSE', 'FALSO', '0'].indexOf(activo) >= 0) return null;
+    return { nombre: str(v[iN]) || 'Editor' };
+  }
+  return null;
+}
+
+function hojaEditores() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(HOJA_EDITORES);
+  if (!sh) {
+    sh = ss.insertSheet(HOJA_EDITORES);
+    sh.getRange(1, 1, sh.getMaxRows(), 3).setNumberFormat('@');
+    const codigo = String(Math.floor(100000 + Math.random() * 900000));
+    sh.getRange(1, 1, 2, 3).setValues([['nombre', 'codigo', 'activo'], ['Administrador', codigo, 'SI']]);
+    sh.getRange(1, 1, 1, 3).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function anotarHistorial(filas) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(HOJA_HISTORIAL);
+  if (!sh) {
+    sh = ss.insertSheet(HOJA_HISTORIAL);
+    sh.getRange(1, 1, 1, 7).setValues([['fecha', 'editor', 'codigo', 'producto', 'accion', 'ubicaciones_antes', 'ubicaciones_despues']]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  const r = sh.getRange(sh.getLastRow() + 1, 1, filas.length, 7);
+  r.setNumberFormat('@');
+  r.setValues(filas);
 }
 
 function str(v) {
@@ -134,6 +203,7 @@ function leer(sh) {
       id, nombre, codigo: get('codigo'), categoria: get('categoria'), formato: get('formato'), notas: get('notas'),
       ubicaciones: get('ubicaciones').split(/[,;|\n]+/).map(x => x.trim()).filter(Boolean),
       actualizado: get('actualizado') || (cambiado ? new Date().toISOString() : ''),
+      modificado_por: get('modificado_por'),
       borrado: b === 'SI' || b === 'SÍ' || b === 'TRUE' || b === 'VERDADERO' || b === 'X'
     });
   });

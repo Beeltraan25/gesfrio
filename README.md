@@ -132,6 +132,17 @@ Publica la app (apartado 1). Todos los móviles que la instalen, o que reciban e
 
 **Seguridad:** la URL y la clave son lo único que protege la hoja. Cualquiera que tenga las dos puede leer y cambiar el catálogo. No las publiques fuera de la empresa. Si se filtran, cambia la `CLAVE` en el script, crea una versión nueva de la implementación y pon la clave nueva en `config.js` o en cada móvil.
 
+### 4.3 Quién puede hacer cambios (editores)
+
+Los móviles conectados a la hoja están en **modo consulta**: pueden buscar y ver ubicaciones, pero no añadir, mover ni borrar nada. Solo pueden hacer cambios las personas con un **código de editor**. La propia hoja rechaza cualquier cambio sin un código válido, aunque alguien manipule la app.
+
+- **Dónde están los códigos:** en la pestaña **«Editores»** de la hoja de Google. Se crea sola la primera vez que un móvil se conecta, con un editor «Administrador» y un código al azar.
+- **Dar de alta a una persona:** añade una fila con su **nombre**, un **código** (por ejemplo 6 cifras que no se repitan) y **activo = SI**.
+- **Quitar el permiso:** pon **activo = NO** en su fila. La próxima vez que ese móvil intente enviar un cambio, pierde el permiso y los cambios que no hubiera enviado se descartan.
+- **Activar la edición en un móvil:** en la app, **Copia → Permiso para editar**, escribe el código y pulsa **🔓 Activar edición**. Se hace una vez por móvil y necesita internet.
+- **Bloquear un móvil** que pasa a otra persona: **Copia → 🔒 Bloquear edición en este móvil**.
+- **Quién hizo cada cambio:** cada cambio queda apuntado en la pestaña **«Historial»** (fecha, editor, producto, acción y ubicaciones antes y después). La columna **modificado_por** de «Productos» indica el último editor de cada producto.
+
 ## 5. Actualizar la app en todos los móviles
 
 Cuando se publica una versión nueva de la app (por ejemplo, cuando se añaden pasillos o cambia `config.js`):
@@ -170,7 +181,7 @@ Sin la hoja de Google, los datos solo existen en el móvil donde se introducen. 
 - Sin dependencias ni compilación: HTML, CSS y JavaScript normales.
 - `app.js`: toda la lógica (IndexedDB, buscador, vistas, sincronización, importar y exportar).
 - `config.js`: conexión con la hoja de Google para todos los móviles (opcional).
-- `hoja-google/Codigo.gs`: script de Google Apps Script que guarda los datos compartidos en la hoja. Combina las ubicaciones con un *merge* de tres vías (lo que añadió y quitó cada móvil respecto a la última versión que vio) y el resto de campos por el cambio más reciente. Los productos borrados se marcan con `borrado = SI` para que el borrado llegue a todos los móviles.
+- `hoja-google/Codigo.gs`: script de Google Apps Script que guarda los datos compartidos en la hoja y comprueba los códigos de editor (pestañas «Editores» e «Historial»). Combina las ubicaciones con un *merge* de tres vías (lo que añadió y quitó cada móvil respecto a la última versión que vio) y el resto de campos por el cambio más reciente. Los productos borrados se marcan con `borrado = SI` para que el borrado llegue a todos los móviles.
 - `sw.js`: service worker que guarda la app en caché («primero caché») para que arranque al instante sin cobertura.
 - Datos: base IndexedDB `gesfrio`, almacén `productos` (`{id, nombre, codigo, categoria, formato, notas, ubicaciones[], actualizado}`, más los campos internos de sincronización `pend`, `base`, `forzar` y `borrado`). La app pide al navegador almacenamiento persistente para que no borre los datos.
 - **Al publicar una versión nueva**, cambia `VERSION` en `sw.js`. Los móviles la descargan la próxima vez que abran la app con internet y la usan a partir de la siguiente apertura. Los datos no se tocan.

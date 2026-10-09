@@ -314,3 +314,7 @@ main { padding: 12px 12px calc(var(--nav-h) + var(--safe-b) + 24px); }
   .sheet { border-radius: 18px; max-height: 92%; border: 3px solid var(--line); }
   .sheet-full { height: auto; padding-top: 0; }
 }
+
+/* Modo consulta: se ocultan los controles de edición */
+.solo-lectura .req-edit { display: none !important; }
+.solo-lectura .req-edit-nav { background: var(--bg2); color: var(--muted); opacity: .5; }
