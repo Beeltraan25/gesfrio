@@ -14,7 +14,7 @@
  * Ubicaciones separadas por comas, con el formato de la app: K-P3-12-B, S-SOFIALTO-4-A…
  */
 
-const CLAVE = 'cambia-esta-clave';
+const CLAVE = '12345';
 const HOJA = 'Productos';
 const COLUMNAS = ['codigo', 'nombre', 'categoria', 'formato', 'ubicaciones', 'notas', 'actualizado', 'borrado', 'id'];
 
