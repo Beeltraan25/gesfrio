@@ -21,7 +21,7 @@ const LETRAS = ['A', 'B', 'C'];
 const TOTAL_HUECOS = ALMACEN.reduce((s, c) => s + c.pasillos.length, 0) * POSICIONES * LETRAS.length;
 const CATEGORIAS = ['Pescado', 'Marisco', 'Carne', 'Verduras', 'Precocinados', 'Helados', 'Panadería', 'Postres', 'Otros'];
 const FORMATOS = ['Caja', 'Kg', 'Unidades', 'Bolsa', 'Bandeja'];
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '2.0.2';
 const CONFIG = window.GESFRIO_CONFIG || {};
 
 /* ============================================================
@@ -1482,7 +1482,8 @@ function wire() {
     } else if (b.id === 'sync-on') {
       const url = $('#sync-url').value.trim(), clave = $('#sync-clave').value.trim();
       const err = $('#sync-err');
-      if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) { err.textContent = 'Pega la dirección de la aplicación web de Google (empieza por https://script.google.com/ y termina en /exec).'; return; }
+      if (/googleusercontent\.com/.test(url)) { err.textContent = 'Esa no es la dirección buena: es la página que sale después de abrirla en el navegador. En Apps Script ve a Implementar → Gestionar implementaciones y copia la «URL de la aplicación web» (termina en /exec).'; return; }
+      if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { err.textContent = 'Pega la «URL de la aplicación web» de Apps Script: empieza por https://script.google.com/macros/s/ y termina en /exec.'; return; }
       if (!clave) { err.textContent = 'Escribe la clave de la hoja.'; return; }
       err.textContent = '';
       b.disabled = true; b.textContent = 'Conectando…';
