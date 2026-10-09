@@ -23,6 +23,8 @@
              placeholder="Buscar producto o código" aria-label="Buscar producto">
       <button id="q-clear" class="search-clear" type="button" aria-label="Borrar búsqueda" hidden>✕</button>
     </div>
+    <button id="sync-bar" class="sync-bar" type="button" hidden></button>
+    <button id="update-bar" class="update-bar" type="button" hidden>⬆ Hay una versión nueva de la app · Toca para actualizar</button>
   </header>
 
   <main id="main">
@@ -30,6 +32,7 @@
     <section id="view-catalogo" class="view">
       <div class="filters">
         <div class="chips" id="f-camara" role="group" aria-label="Filtrar por cámara"></div>
+        <div class="chips chips-pas" id="f-pasillo" role="group" aria-label="Filtrar por pasillo" hidden></div>
         <select id="f-categoria" class="big-select" aria-label="Filtrar por categoría"></select>
       </div>
       <div id="loc-hit"></div>
@@ -40,6 +43,8 @@
     <!-- CÁMARAS -->
     <section id="view-camaras" class="view" hidden>
       <div class="chips chips-cam" id="cam-sel" role="group" aria-label="Elegir cámara"></div>
+      <div class="sub-label">Pasillo</div>
+      <div class="chips chips-pas" id="pas-sel" role="group" aria-label="Elegir pasillo"></div>
       <p id="cam-resumen" class="count"></p>
       <div class="grid-wrap" id="grid-wrap">
         <table class="grid" id="grid"></table>
@@ -53,6 +58,9 @@
 
     <!-- COPIA / AJUSTES -->
     <section id="view-copia" class="view" hidden>
+      <h2 class="h2">Compartir datos entre móviles</h2>
+      <div id="sync-panel" class="stack"></div>
+
       <h2 class="h2">Copia de seguridad</h2>
       <div class="stack">
         <button class="btn btn-primary" id="exp-json" type="button">⬇ Exportar copia (JSON)</button>
@@ -90,6 +98,7 @@
   <div id="modals"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

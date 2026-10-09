@@ -1,12 +1,13 @@
 /* Service worker de GesFrío: guarda la app en el dispositivo para que funcione sin conexión.
  * IMPORTANTE: al cambiar cualquier archivo de la app, sube el número de VERSION
  * para que los móviles descarguen la versión nueva la próxima vez que tengan internet. */
-const VERSION = 'gesfrio-v1.0.0';
+const VERSION = 'gesfrio-v2.0.0';
 const ARCHIVOS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './config.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
